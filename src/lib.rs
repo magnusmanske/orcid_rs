@@ -17,25 +17,57 @@ fn collect_parts(j: &serde_json::Value, parts: Vec<&str>) -> Vec<Vec<String>> {
 }
 
 #[derive(Debug, Clone)]
+pub struct PublicationDate {
+    year: Option<u32>,
+    month: Option<u8>,
+    day: Option<u8>,
+}
+
+impl PublicationDate {
+    pub fn new_from_json(j: &serde_json::Value) -> Self {
+        Self {
+            year: match j["year"]["value"].as_str().map(|v| v.to_string()) {
+                Some(v) => v.parse::<u32>().ok(),
+                None => None,
+            },
+            month: match j["month"]["value"].as_str().map(|v| v.to_string()) {
+                Some(v) => v.parse::<u8>().ok(),
+                None => None,
+            },
+            day: match j["day"]["value"].as_str().map(|v| v.to_string()) {
+                Some(v) => v.parse::<u8>().ok(),
+                None => None,
+            },
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct Work {
+    pub title: Option<String>,
     pub external_ids: Vec<(String, String)>,
+    pub publication_date: PublicationDate,
+    pub pub_type: Option<String>,
 }
 
 impl Work {
-    pub fn new_from_json(j: &serde_json::Value) -> Work {
-        let mut ret = Work {
-            external_ids: vec![],
-        };
-
-        ret.external_ids = collect_parts(
-            &j["external-ids"]["external-id"],
-            vec!["external-id-type", "external-id-value"],
-        )
-        .iter()
-        .map(|v| (v[0].to_owned(), v[1].to_owned()))
-        .collect();
-
-        ret
+    pub fn new_from_json(j: &serde_json::Value) -> Self {
+        Self {
+            title: j["work-summary"][0]["title"]["title"]["value"]
+                .as_str()
+                .map(|v| v.to_string()),
+            external_ids: collect_parts(
+                &j["external-ids"]["external-id"],
+                vec!["external-id-type", "external-id-value"],
+            )
+            .iter()
+            .map(|v| (v[0].to_owned(), v[1].to_owned()))
+            .collect(),
+            pub_type: j["work-summary"][0]["type"].as_str().map(|v| v.to_string()),
+            publication_date: PublicationDate::new_from_json(
+                &j["work-summary"][0]["publication-date"],
+            ),
+        }
     }
 }
 
