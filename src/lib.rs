@@ -3,6 +3,19 @@ extern crate reqwest;
 use reqwest::header::ACCEPT;
 use serde_json;
 
+fn collect_parts(j: &serde_json::Value, parts: Vec<&str>) -> Vec<Vec<String>> {
+    j.as_array()
+        .unwrap_or(&vec![])
+        .iter()
+        .map(|v| {
+            parts
+                .iter()
+                .map(|part| v[part].as_str().unwrap_or("").to_string())
+                .collect()
+        })
+        .collect()
+}
+
 #[derive(Debug, Clone)]
 pub struct Work {
     pub external_ids: Vec<(String, String)>,
@@ -14,17 +27,13 @@ impl Work {
             external_ids: vec![],
         };
 
-        ret.external_ids = j["external-ids"]["external-id"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|v| {
-                (
-                    v["external-id-type"].as_str().unwrap().to_string(),
-                    v["external-id-value"].as_str().unwrap().to_string(),
-                )
-            })
-            .collect();
+        ret.external_ids = collect_parts(
+            &j["external-ids"]["external-id"],
+            vec!["external-id-type", "external-id-value"],
+        )
+        .iter()
+        .map(|v| (v[0].to_owned(), v[1].to_owned()))
+        .collect();
 
         ret
     }
@@ -53,32 +62,26 @@ impl Author {
     }
 
     pub fn external_ids(&self) -> Vec<(String, String)> {
-        self.j["person"]["external-identifiers"]["external-identifier"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|v| {
-                (
-                    v["external-id-type"].as_str().unwrap().to_string(),
-                    v["external-id-value"].as_str().unwrap().to_string(),
-                )
-            })
-            .collect()
+        collect_parts(
+            &self.j["person"]["external-identifiers"]["external-identifier"],
+            vec!["external-id-type", "external-id-value"],
+        )
+        .iter()
+        .map(|v| (v[0].to_owned(), v[1].to_owned()))
+        .collect()
     }
 
     pub fn keywords(&self) -> Vec<String> {
-        self.j["person"]["keywords"]["keyword"]
-            .as_array()
-            .unwrap()
+        collect_parts(&self.j["person"]["keywords"]["keyword"], vec!["content"])
             .iter()
-            .map(|v| v["content"].as_str().unwrap().to_string())
+            .map(|v| v[0].to_owned())
             .collect()
     }
 
     pub fn works(&self) -> Vec<Work> {
-        self.j["person"]["activities"]["works"]["group"]
+        self.j["activities-summary"]["works"]["group"]
             .as_array()
-            .unwrap()
+            .unwrap_or(&vec![])
             .iter()
             .map(|v| Work::new_from_json(&v))
             .collect()
