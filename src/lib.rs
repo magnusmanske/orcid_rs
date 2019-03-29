@@ -4,13 +4,44 @@ use reqwest::header::ACCEPT;
 use serde_json;
 
 #[derive(Debug, Clone)]
+pub struct Work {
+    pub external_ids: Vec<(String, String)>,
+}
+
+impl Work {
+    pub fn new_from_json(j: &serde_json::Value) -> Work {
+        let mut ret = Work {
+            external_ids: vec![],
+        };
+
+        ret.external_ids = j["external-ids"]["external-id"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| {
+                (
+                    v["external-id-type"].as_str().unwrap().to_string(),
+                    v["external-id-value"].as_str().unwrap().to_string(),
+                )
+            })
+            .collect();
+
+        ret
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct Author {
     j: serde_json::Value,
 }
 
 impl Author {
-    pub fn new(j: serde_json::Value) -> Author {
+    pub fn new_from_json(j: serde_json::Value) -> Author {
         Author { j: j }
+    }
+
+    pub fn json(&self) -> &serde_json::Value {
+        &self.j
     }
 
     pub fn orcid_id(&self) -> Option<&str> {
@@ -20,6 +51,44 @@ impl Author {
     pub fn credit_name(&self) -> Option<&str> {
         self.j["person"]["name"]["credit-name"]["value"].as_str()
     }
+
+    pub fn external_ids(&self) -> Vec<(String, String)> {
+        self.j["person"]["external-identifiers"]["external-identifier"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| {
+                (
+                    v["external-id-type"].as_str().unwrap().to_string(),
+                    v["external-id-value"].as_str().unwrap().to_string(),
+                )
+            })
+            .collect()
+    }
+
+    pub fn keywords(&self) -> Vec<String> {
+        self.j["person"]["keywords"]["keyword"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v["content"].as_str().unwrap().to_string())
+            .collect()
+    }
+
+    pub fn works(&self) -> Vec<Work> {
+        self.j["person"]["activities"]["works"]["group"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| Work::new_from_json(&v))
+            .collect()
+    }
+
+    // TODO name and name variants
+    // Homepage
+    // activities: education, employments
+    // fundings
+    // peer-reviews
 }
 
 #[derive(Debug, Clone)]
@@ -55,7 +124,7 @@ impl Client {
                 orcid_id,
                 json["developer-message"].as_str().unwrap()
             ))),
-            None => Ok(Author::new(json)),
+            None => Ok(Author::new_from_json(json)),
         }
     }
 
