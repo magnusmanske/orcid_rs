@@ -140,7 +140,7 @@ impl Client {
 
     fn get_json_from_api(&self, query: String) -> Result<serde_json::Value, reqwest::Error> {
         let url = self.api_url.clone() + &query;
-        println!("{}", &url);
+        //println!("{}", &url);
         reqwest::Client::new()
             .get(url.as_str())
             .header(ACCEPT, "application/json")
