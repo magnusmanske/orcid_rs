@@ -93,11 +93,33 @@ impl Date {
 }
 
 #[derive(Debug, Clone)]
+pub struct Organization {
+    name: Option<String>,
+    city: Option<String>,
+    region: Option<String>,
+    country: Option<String>,
+    // TODO external IDS
+    // TODO disambiguated-organization
+}
+
+impl Organization {
+    pub fn new_from_json(j: &serde_json::Value) -> Self {
+        Self {
+            name: j["name"].as_str().map(|s| s.to_string()),
+            city: j["address"]["city"].as_str().map(|s| s.to_string()),
+            region: j["address"]["region"].as_str().map(|s| s.to_string()),
+            country: j["address"]["country"].as_str().map(|s| s.to_string()),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct Role {
     department: Option<String>,
     title: Option<String>,
     start_date: Option<Date>,
     end_date: Option<Date>,
+    organization: Option<Organization>,
 }
 
 impl Role {
@@ -107,6 +129,7 @@ impl Role {
             title: None,
             start_date: None,
             end_date: None,
+            organization: None,
         }
     }
 }
@@ -117,7 +140,7 @@ pub struct Author {
 }
 
 impl Author {
-    pub fn new_from_json(j: serde_json::Value) -> Author {
+    pub fn new_from_json(j: serde_json::Value) -> Self {
         Author { j: j }
     }
 
@@ -229,6 +252,14 @@ impl Author {
                                     true => {
                                         role.end_date = Some(Date::new_from_json(
                                             &summary["education-summary"]["end-date"],
+                                        ))
+                                    }
+                                    false => {}
+                                }
+                                match summary["education-summary"]["organization"].is_object() {
+                                    true => {
+                                        role.organization = Some(Organization::new_from_json(
+                                            &summary["education-summary"]["organization"],
                                         ))
                                     }
                                     false => {}
