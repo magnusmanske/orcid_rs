@@ -72,6 +72,46 @@ impl Work {
 }
 
 #[derive(Debug, Clone)]
+pub struct Date {
+    year: Option<u16>,
+    month: Option<u8>,
+    day: Option<u8>,
+}
+
+impl Date {
+    pub fn new_from_json(j: &serde_json::Value) -> Self {
+        Self {
+            year: j["year"]["value"]
+                .as_str()
+                .map(|x| x.parse::<u16>().unwrap()),
+            month: j["month"]["value"]
+                .as_str()
+                .map(|x| x.parse::<u8>().unwrap()),
+            day: j["day"]["value"].as_str().map(|x| x.parse::<u8>().unwrap()),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Role {
+    department: Option<String>,
+    title: Option<String>,
+    start_date: Option<Date>,
+    end_date: Option<Date>,
+}
+
+impl Role {
+    pub fn new() -> Self {
+        Self {
+            department: None,
+            title: None,
+            start_date: None,
+            end_date: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct Author {
     j: serde_json::Value,
 }
@@ -103,6 +143,17 @@ impl Author {
         }
     }
 
+    pub fn other_names(&self) -> Vec<&str> {
+        match self.j["person"]["other-names"]["other-name"].as_array() {
+            Some(x) => x
+                .iter()
+                .filter(|x| x["content"].is_string())
+                .map(|x| x["content"].as_str().unwrap())
+                .collect(),
+            None => vec![],
+        }
+    }
+
     pub fn external_ids(&self) -> Vec<(String, String)> {
         collect_parts(
             &self.j["person"]["external-identifiers"]["external-identifier"],
@@ -129,8 +180,72 @@ impl Author {
             .collect()
     }
 
+    pub fn researcher_urls(&self) -> Vec<(&str, &str)> {
+        match self.j["person"]["researcher-urls"]["researcher-url"].as_array() {
+            Some(x) => x
+                .iter()
+                .filter(|x| x["url-name"].is_string())
+                .filter(|x| x["url"]["value"].is_string())
+                .map(|x| {
+                    (
+                        x["url-name"].as_str().unwrap(),
+                        x["url"]["value"].as_str().unwrap(),
+                    )
+                })
+                .collect(),
+            None => vec![],
+        }
+    }
+
+    pub fn education(&self) -> Vec<Role> {
+        match self.j["activities-summary"]["educations"]["affiliation-group"].as_array() {
+            Some(groups) => {
+                let mut ret = vec![];
+                for group in groups {
+                    // TODO external-ids
+                    match group["summaries"].as_array() {
+                        Some(summaries) => {
+                            for summary in summaries {
+                                println!("{}", &summary);
+                                if !summary["education-summary"].is_object() {
+                                    continue;
+                                }
+                                let mut role = Role::new();
+                                role.department = summary["education-summary"]["department-name"]
+                                    .as_str()
+                                    .map(|s| s.to_string());
+                                role.title = summary["education-summary"]["role-title"]
+                                    .as_str()
+                                    .map(|s| s.to_string());
+                                match summary["education-summary"]["start-date"].is_object() {
+                                    true => {
+                                        role.start_date = Some(Date::new_from_json(
+                                            &summary["education-summary"]["start-date"],
+                                        ))
+                                    }
+                                    false => {}
+                                }
+                                match summary["education-summary"]["end-date"].is_object() {
+                                    true => {
+                                        role.end_date = Some(Date::new_from_json(
+                                            &summary["education-summary"]["end-date"],
+                                        ))
+                                    }
+                                    false => {}
+                                }
+                                ret.push(role);
+                            }
+                        }
+                        None => {}
+                    }
+                }
+                ret
+            }
+            None => vec![],
+        }
+    }
+
     // TODO name and name variants
-    // Homepage
     // activities: education, employments
     // fundings
     // peer-reviews
