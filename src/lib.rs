@@ -98,17 +98,33 @@ pub struct Organization {
     city: Option<String>,
     region: Option<String>,
     country: Option<String>,
-    // TODO external IDS
-    // TODO disambiguated-organization
+    disambiguated_organization: Option<(String, String)>, // TODO external IDS
 }
 
 impl Organization {
     pub fn new_from_json(j: &serde_json::Value) -> Self {
+        let d_o = match j["disambiguated-organization"].as_object() {
+            Some(o) => Some((
+                o.get("disambiguation-source")
+                    .unwrap()
+                    .as_str()
+                    .unwrap()
+                    .to_string(),
+                o.get("disambiguated-organization-identifier")
+                    .unwrap()
+                    .as_str()
+                    .unwrap()
+                    .to_string(),
+            )),
+            None => None,
+        };
+
         Self {
             name: j["name"].as_str().map(|s| s.to_string()),
             city: j["address"]["city"].as_str().map(|s| s.to_string()),
             region: j["address"]["region"].as_str().map(|s| s.to_string()),
             country: j["address"]["country"].as_str().map(|s| s.to_string()),
+            disambiguated_organization: d_o,
         }
     }
 }
@@ -177,6 +193,10 @@ impl Author {
         }
     }
 
+    pub fn biography(&self) -> Option<&str> {
+        self.j["person"]["biography"]["content"].as_str()
+    }
+
     pub fn external_ids(&self) -> Vec<(String, String)> {
         collect_parts(
             &self.j["person"]["external-identifiers"]["external-identifier"],
@@ -220,8 +240,8 @@ impl Author {
         }
     }
 
-    pub fn education(&self) -> Vec<Role> {
-        match self.j["activities-summary"]["educations"]["affiliation-group"].as_array() {
+    fn roles(&self, key1: &str, key2: &str) -> Vec<Role> {
+        match self.j["activities-summary"][key1]["affiliation-group"].as_array() {
             Some(groups) => {
                 let mut ret = vec![];
                 for group in groups {
@@ -229,38 +249,31 @@ impl Author {
                     match group["summaries"].as_array() {
                         Some(summaries) => {
                             for summary in summaries {
-                                println!("{}", &summary);
-                                if !summary["education-summary"].is_object() {
+                                if !summary[key2].is_object() {
                                     continue;
                                 }
+                                let x2 = &summary[key2];
                                 let mut role = Role::new();
-                                role.department = summary["education-summary"]["department-name"]
-                                    .as_str()
-                                    .map(|s| s.to_string());
-                                role.title = summary["education-summary"]["role-title"]
-                                    .as_str()
-                                    .map(|s| s.to_string());
-                                match summary["education-summary"]["start-date"].is_object() {
+                                role.department =
+                                    x2["department-name"].as_str().map(|s| s.to_string());
+                                role.title = x2["role-title"].as_str().map(|s| s.to_string());
+                                match x2["start-date"].is_object() {
                                     true => {
-                                        role.start_date = Some(Date::new_from_json(
-                                            &summary["education-summary"]["start-date"],
-                                        ))
+                                        role.start_date =
+                                            Some(Date::new_from_json(&x2["start-date"]))
                                     }
                                     false => {}
                                 }
-                                match summary["education-summary"]["end-date"].is_object() {
+                                match x2["end-date"].is_object() {
                                     true => {
-                                        role.end_date = Some(Date::new_from_json(
-                                            &summary["education-summary"]["end-date"],
-                                        ))
+                                        role.end_date = Some(Date::new_from_json(&x2["end-date"]))
                                     }
                                     false => {}
                                 }
-                                match summary["education-summary"]["organization"].is_object() {
+                                match x2["organization"].is_object() {
                                     true => {
-                                        role.organization = Some(Organization::new_from_json(
-                                            &summary["education-summary"]["organization"],
-                                        ))
+                                        role.organization =
+                                            Some(Organization::new_from_json(&x2["organization"]))
                                     }
                                     false => {}
                                 }
@@ -276,10 +289,22 @@ impl Author {
         }
     }
 
+    pub fn education(&self) -> Vec<Role> {
+        self.roles("educations", "education-summary")
+    }
+
+    pub fn employment(&self) -> Vec<Role> {
+        self.roles("employments", "employment-summary")
+    }
+
     // TODO name and name variants
-    // activities: education, employments
     // fundings
+    // invited-positions
+    // memberships
     // peer-reviews
+    // qualifications
+    // research-resources?
+    // services?
 }
 
 #[derive(Debug, Clone)]
