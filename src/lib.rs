@@ -93,6 +93,16 @@ impl Author {
         self.j["person"]["name"]["credit-name"]["value"].as_str()
     }
 
+    pub fn full_name(&self) -> Option<String> {
+        let last_name = self.j["person"]["name"]["family-name"]["value"].as_str();
+        let given_names = self.j["person"]["name"]["given-names"]["value"].as_str();
+        match (given_names, last_name) {
+            (Some(f), Some(l)) => Some(format!("{} {}", &f, &l)),
+            (None, Some(l)) => Some(format!("{}", &l)),
+            _ => None,
+        }
+    }
+
     pub fn external_ids(&self) -> Vec<(String, String)> {
         collect_parts(
             &self.j["person"]["external-identifiers"]["external-identifier"],
@@ -134,7 +144,7 @@ pub struct Client {
 impl Client {
     pub fn new() -> Client {
         Client {
-            api_url: "https://pub.orcid.org/v2.1/".to_string(),
+            api_url: "https://pub.orcid.org/v3.0/".to_string(),
         }
     }
 
