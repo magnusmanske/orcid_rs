@@ -353,13 +353,13 @@ impl Client {
     pub fn search(&self, query: &String) -> Result<Vec<String>, Box<::std::error::Error>> {
         // TODO urlencode search query
         let json: serde_json::Value = self.get_json_from_api("search?q=".to_string() + query)?;
-        let ret = json["result"]
-            .as_array()
-            .unwrap()
-            .into_iter()
-            .map(|x| x["orcid-identifier"]["path"].as_str().unwrap().to_string())
-            .collect();
-        Ok(ret)
+        match json["result"].as_array() {
+            Some(res) => Ok(res
+                .into_iter()
+                .map(|x| x["orcid-identifier"]["path"].as_str().unwrap().to_string())
+                .collect()),
+            None => Err(From::from(format!("Bad result: {}", &json))),
+        }
     }
 }
 
