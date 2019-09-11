@@ -2,6 +2,7 @@ extern crate reqwest;
 
 use reqwest::header::ACCEPT;
 use serde_json;
+use std::error::Error;
 
 fn collect_parts(j: &serde_json::Value, parts: Vec<&str>) -> Vec<Vec<String>> {
     j.as_array()
@@ -81,13 +82,9 @@ pub struct Date {
 impl Date {
     pub fn new_from_json(j: &serde_json::Value) -> Self {
         Self {
-            year: j["year"]["value"]
-                .as_str()
-                .map(|x| x.parse::<u16>().unwrap()),
-            month: j["month"]["value"]
-                .as_str()
-                .map(|x| x.parse::<u8>().unwrap()),
-            day: j["day"]["value"].as_str().map(|x| x.parse::<u8>().unwrap()),
+            year: j["year"]["value"].as_u64().map(|x| x as u16),
+            month: j["month"]["value"].as_u64().map(|x| x as u8),
+            day: j["day"]["value"].as_u64().map(|x| x as u8),
         }
     }
 }
@@ -104,18 +101,13 @@ pub struct Organization {
 impl Organization {
     pub fn new_from_json(j: &serde_json::Value) -> Self {
         let d_o = match j["disambiguated-organization"].as_object() {
-            Some(o) => Some((
-                o.get("disambiguation-source")
-                    .unwrap()
-                    .as_str()
-                    .unwrap()
-                    .to_string(),
-                o.get("disambiguated-organization-identifier")
-                    .unwrap()
-                    .as_str()
-                    .unwrap()
-                    .to_string(),
-            )),
+            Some(o) => match (
+                o.get("disambiguation-source"),
+                o.get("disambiguated-organization-identifier"),
+            ) {
+                (Some(source), Some(id)) => Some((source.to_string(), id.to_string())),
+                _ => None,
+            },
             None => None,
         };
 
@@ -187,7 +179,7 @@ impl Author {
             Some(x) => x
                 .iter()
                 .filter(|x| x["content"].is_string())
-                .map(|x| x["content"].as_str().unwrap())
+                .filter_map(|x| x["content"].as_str())
                 .collect(),
             None => vec![],
         }
@@ -229,12 +221,12 @@ impl Author {
                 .iter()
                 .filter(|x| x["url-name"].is_string())
                 .filter(|x| x["url"]["value"].is_string())
-                .map(|x| {
-                    (
-                        x["url-name"].as_str().unwrap(),
-                        x["url"]["value"].as_str().unwrap(),
-                    )
-                })
+                .filter_map(
+                    |x| match (x["url-name"].as_str(), x["url"]["value"].as_str()) {
+                        (Some(name), Some(value)) => Some((name, value)),
+                        _ => None,
+                    },
+                )
                 .collect(),
             None => vec![],
         }
@@ -329,34 +321,56 @@ impl Client {
             .json()
     }
 
+    pub fn is_valid_orcid_id(id: &String) -> bool {
+        let mut digits: Vec<u32> = id
+            .chars()
+            .filter(|c| *c != '-')
+            .filter_map(|c| if c == 'X' { Some(10) } else { c.to_digit(10) })
+            .collect();
+        if digits.len() != 16 {
+            return false;
+        }
+        let last_digit = digits.pop().unwrap(); // unwrap OK
+        let total = digits.iter().fold(0, |total, digit| (total + digit) * 2);
+        let remainder = total % 11;
+        let result = (12 - remainder) % 11;
+        last_digit == result
+    }
+
     /// Returns an `Author` for a given ORCID ID
-    pub fn author(&self, orcid_id: &String) -> Result<Author, Box<::std::error::Error>> {
-        // TODO validate ORCID ID
+    pub fn author(&self, orcid_id: &String) -> Result<Author, Box<dyn Error>> {
+        if !Self::is_valid_orcid_id(orcid_id) {
+            return Err(From::from(format!("{} is not a valid ORCID ID", orcid_id)));
+        }
+
         let json: serde_json::Value = self.get_json_from_api(orcid_id.to_string())?;
 
         match json["error-code"].as_str() {
             Some(_) => Err(From::from(format!(
                 "{}:{}",
                 orcid_id,
-                json["developer-message"].as_str().unwrap()
+                json["developer-message"]
+                    .as_str()
+                    .unwrap_or("no developer-message")
             ))),
             None => Ok(Author::new_from_json(json)),
         }
     }
 
     /// Takes a DOI, quotes and searches it, returns a Vec<String> of ORCID IDs
-    pub fn search_doi(&self, doi: &String) -> Result<Vec<String>, Box<::std::error::Error>> {
+    pub fn search_doi(&self, doi: &String) -> Result<Vec<String>, Box<dyn Error>> {
         self.search(&("\"".to_string() + doi + "\""))
     }
 
     /// Takes a search query, returns a Vec<String> of ORCID IDs
-    pub fn search(&self, query: &String) -> Result<Vec<String>, Box<::std::error::Error>> {
+    pub fn search(&self, query: &String) -> Result<Vec<String>, Box<dyn Error>> {
         // TODO urlencode search query
         let json: serde_json::Value = self.get_json_from_api("search?q=".to_string() + query)?;
         match json["result"].as_array() {
             Some(res) => Ok(res
                 .into_iter()
-                .map(|x| x["orcid-identifier"]["path"].as_str().unwrap().to_string())
+                .filter_map(|x| x["orcid-identifier"]["path"].as_str())
+                .map(|s| s.to_string())
                 .collect()),
             None => Err(From::from(format!("Bad result: {}", &json))),
         }
@@ -366,9 +380,29 @@ impl Client {
 #[cfg(test)]
 mod tests {
     use super::*;
+
     #[test]
     fn test1() {
-        let _client = Client::new();
-        assert_eq!(2 + 2, 4);
+        //let _client = Client::new();
+        //assert_eq!(2 + 2, 4);
+    }
+
+    #[test]
+    fn is_valid_orcid_id() {
+        // Good
+        assert!(Client::is_valid_orcid_id(
+            &"0000-0001-5916-0947".to_string()
+        ));
+        assert!(Client::is_valid_orcid_id(&"0000000159160947".to_string()));
+
+        // Bad
+        assert!(!Client::is_valid_orcid_id(
+            &"0000-0001-6916-0947".to_string() // Wrong digit
+        ));
+        assert!(!Client::is_valid_orcid_id(
+            &"0000-0001-5916-0948".to_string() // Wrong checksum
+        ));
+        assert!(!Client::is_valid_orcid_id(&"12345".to_string()));
+        assert!(!Client::is_valid_orcid_id(&"xyz".to_string()));
     }
 }
