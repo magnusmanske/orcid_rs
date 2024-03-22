@@ -1,7 +1,6 @@
 extern crate reqwest;
 
 use reqwest::header::ACCEPT;
-use serde_json;
 use std::error::Error;
 
 fn collect_parts(j: &serde_json::Value, parts: Vec<&str>) -> Vec<Vec<String>> {
@@ -40,6 +39,18 @@ impl PublicationDate {
                 None => None,
             },
         }
+    }
+
+    pub fn month(&self) -> Option<u8> {
+        self.month
+    }
+
+    pub fn year(&self) -> Option<u32> {
+        self.year
+    }
+
+    pub fn day(&self) -> Option<u8> {
+        self.day
     }
 }
 
@@ -87,6 +98,18 @@ impl Date {
             day: j["day"]["value"].as_u64().map(|x| x as u8),
         }
     }
+
+    pub fn year(&self) -> Option<u16> {
+        self.year
+    }
+
+    pub fn month(&self) -> Option<u8> {
+        self.month
+    }
+
+    pub fn day(&self) -> Option<u8> {
+        self.day
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -119,6 +142,26 @@ impl Organization {
             disambiguated_organization: d_o,
         }
     }
+
+    pub fn name(&self) -> Option<&String> {
+        self.name.as_ref()
+    }
+
+    pub fn city(&self) -> Option<&String> {
+        self.city.as_ref()
+    }
+
+    pub fn region(&self) -> Option<&String> {
+        self.region.as_ref()
+    }
+
+    pub fn country(&self) -> Option<&String> {
+        self.country.as_ref()
+    }
+
+    pub fn disambiguated_organization(&self) -> Option<&(String, String)> {
+        self.disambiguated_organization.as_ref()
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -142,6 +185,12 @@ impl Role {
     }
 }
 
+impl Default for Role {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Author {
     j: serde_json::Value,
@@ -149,7 +198,7 @@ pub struct Author {
 
 impl Author {
     pub fn new_from_json(j: serde_json::Value) -> Self {
-        Author { j: j }
+        Author { j }
     }
 
     pub fn json(&self) -> &serde_json::Value {
@@ -169,7 +218,7 @@ impl Author {
         let given_names = self.j["person"]["name"]["given-names"]["value"].as_str();
         match (given_names, last_name) {
             (Some(f), Some(l)) => Some(format!("{} {}", &f, &l)),
-            (None, Some(l)) => Some(format!("{}", &l)),
+            (None, Some(l)) => Some((&l).to_string()),
             _ => None,
         }
     }
@@ -211,7 +260,7 @@ impl Author {
             .as_array()
             .unwrap_or(&vec![])
             .iter()
-            .map(|v| Work::new_from_json(&v))
+            .map(Work::new_from_json)
             .collect()
     }
 
@@ -238,41 +287,34 @@ impl Author {
                 let mut ret = vec![];
                 for group in groups {
                     // TODO external-ids
-                    match group["summaries"].as_array() {
-                        Some(summaries) => {
-                            for summary in summaries {
-                                if !summary[key2].is_object() {
-                                    continue;
-                                }
-                                let x2 = &summary[key2];
-                                let mut role = Role::new();
-                                role.department =
-                                    x2["department-name"].as_str().map(|s| s.to_string());
-                                role.title = x2["role-title"].as_str().map(|s| s.to_string());
-                                match x2["start-date"].is_object() {
-                                    true => {
-                                        role.start_date =
-                                            Some(Date::new_from_json(&x2["start-date"]))
-                                    }
-                                    false => {}
-                                }
-                                match x2["end-date"].is_object() {
-                                    true => {
-                                        role.end_date = Some(Date::new_from_json(&x2["end-date"]))
-                                    }
-                                    false => {}
-                                }
-                                match x2["organization"].is_object() {
-                                    true => {
-                                        role.organization =
-                                            Some(Organization::new_from_json(&x2["organization"]))
-                                    }
-                                    false => {}
-                                }
-                                ret.push(role);
+                    if let Some(summaries) = group["summaries"].as_array() {
+                        for summary in summaries {
+                            if !summary[key2].is_object() {
+                                continue;
                             }
+                            let x2 = &summary[key2];
+                            let mut role = Role::new();
+                            role.department = x2["department-name"].as_str().map(|s| s.to_string());
+                            role.title = x2["role-title"].as_str().map(|s| s.to_string());
+                            match x2["start-date"].is_object() {
+                                true => {
+                                    role.start_date = Some(Date::new_from_json(&x2["start-date"]))
+                                }
+                                false => {}
+                            }
+                            match x2["end-date"].is_object() {
+                                true => role.end_date = Some(Date::new_from_json(&x2["end-date"])),
+                                false => {}
+                            }
+                            match x2["organization"].is_object() {
+                                true => {
+                                    role.organization =
+                                        Some(Organization::new_from_json(&x2["organization"]))
+                                }
+                                false => {}
+                            }
+                            ret.push(role);
                         }
-                        None => {}
                     }
                 }
                 ret
@@ -321,7 +363,7 @@ impl Client {
             .json()
     }
 
-    pub fn is_valid_orcid_id(id: &String) -> bool {
+    pub fn is_valid_orcid_id(id: &str) -> bool {
         let mut digits: Vec<u32> = id
             .chars()
             .filter(|c| *c != '-')
@@ -368,12 +410,18 @@ impl Client {
         let json: serde_json::Value = self.get_json_from_api("search?q=".to_string() + query)?;
         match json["result"].as_array() {
             Some(res) => Ok(res
-                .into_iter()
+                .iter()
                 .filter_map(|x| x["orcid-identifier"]["path"].as_str())
                 .map(|s| s.to_string())
                 .collect()),
             None => Err(From::from(format!("Bad result: {}", &json))),
         }
+    }
+}
+
+impl Default for Client {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

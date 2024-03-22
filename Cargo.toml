@@ -2,7 +2,7 @@
 name = "orcid"
 version = "0.1.4"
 authors = ["Magnus Manske <magnusmanske@googlemail.com>"]
-edition = "2018"
+edition = "2021"
 description="A wrapper around the ORCID API"
 repository="https://github.com/magnusmanske/orcid"
 keywords=["orcid","api","publications","papers","science"]
