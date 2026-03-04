@@ -8,6 +8,7 @@ pub struct Role {
     start_date: Option<Date>,
     end_date: Option<Date>,
     organization: Option<Organization>,
+    external_ids: Vec<(String, String)>,
 }
 
 impl Role {
@@ -18,6 +19,7 @@ impl Role {
             start_date: None,
             end_date: None,
             organization: None,
+            external_ids: Vec::new(),
         }
     }
 
@@ -61,6 +63,19 @@ impl Role {
 
     pub fn set_organization(&mut self, organization: Option<Organization>) {
         self.organization = organization;
+    }
+
+    pub fn external_ids(&self) -> &Vec<(String, String)> {
+        &self.external_ids
+    }
+
+    pub fn add_external_id(&mut self, id_type: &str, id_value: &str) {
+        self.external_ids
+            .push((id_type.to_string(), id_value.to_string()));
+    }
+
+    pub fn set_external_ids(&mut self, external_ids: Vec<(String, String)>) {
+        self.external_ids = external_ids;
     }
 }
 
@@ -138,5 +153,29 @@ mod tests {
         // Test setting to None
         role.set_department(None);
         assert!(role.department().is_none());
+    }
+
+    #[test]
+    fn test_external_ids() {
+        // This test ensures Role supports external IDs
+        // Currently this functionality is not implemented (TODO)
+        let mut role = Role::new();
+
+        // Test default state - no external IDs
+        assert_eq!(role.external_ids().len(), 0);
+
+        // Test adding external IDs
+        role.add_external_id("grant_number", "GR-2023-12345");
+        role.add_external_id("project_id", "PROJ-456");
+
+        assert_eq!(role.external_ids().len(), 2);
+        assert_eq!(
+            role.external_ids()[0],
+            ("grant_number".to_string(), "GR-2023-12345".to_string())
+        );
+        assert_eq!(
+            role.external_ids()[1],
+            ("project_id".to_string(), "PROJ-456".to_string())
+        );
     }
 }

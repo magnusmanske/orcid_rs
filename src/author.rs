@@ -98,6 +98,27 @@ impl Author {
             .map(|groups| {
                 let mut ret = Vec::new();
                 for group in groups {
+                    // Parse external IDs at group level
+                    let group_external_ids =
+                        if let Some(ext_ids) = group["external-ids"]["external-id"].as_array() {
+                            ext_ids
+                                .iter()
+                                .filter_map(|id| {
+                                    match (
+                                        id["external-id-type"].as_str(),
+                                        id["external-id-value"].as_str(),
+                                    ) {
+                                        (Some(id_type), Some(id_value)) => {
+                                            Some((id_type.to_string(), id_value.to_string()))
+                                        }
+                                        _ => None,
+                                    }
+                                })
+                                .collect::<Vec<(String, String)>>()
+                        } else {
+                            vec![]
+                        };
+
                     if let Some(summaries) = group["summaries"].as_array() {
                         for summary in summaries {
                             if !summary[key2].is_object() {
@@ -120,6 +141,8 @@ impl Author {
                                     &x2["organization"],
                                 )))
                             }
+                            // Set external IDs from the group level
+                            role.set_external_ids(group_external_ids.clone());
                             ret.push(role);
                         }
                     }
@@ -665,5 +688,54 @@ mod tests {
         );
         assert!(memberships[0].organization().is_some());
         assert_eq!(memberships[0].external_ids().len(), 1);
+    }
+
+    #[test]
+    fn test_role_external_ids_parsing() {
+        let j = json!({
+            "activities-summary": {
+                "employments": {
+                    "affiliation-group": [{
+                        "external-ids": {
+                            "external-id": [{
+                                "external-id-type": "grant-number",
+                                "external-id-value": "GR-2023-12345"
+                            }, {
+                                "external-id-type": "project-id",
+                                "external-id-value": "PROJ-456"
+                            }]
+                        },
+                        "summaries": [{
+                            "employment-summary": {
+                                "department-name": "Research",
+                                "role-title": "Principal Investigator",
+                                "organization": {
+                                    "name": "Research Institute"
+                                }
+                            }
+                        }]
+                    }]
+                }
+            }
+        });
+
+        let author = Author::new_from_json(j);
+        let employment = author.employment();
+        assert_eq!(employment.len(), 1);
+
+        let role = &employment[0];
+        assert_eq!(
+            role.title().map(|s| s.as_str()),
+            Some("Principal Investigator")
+        );
+        assert_eq!(role.external_ids().len(), 2);
+        assert_eq!(
+            role.external_ids()[0],
+            ("grant-number".to_string(), "GR-2023-12345".to_string())
+        );
+        assert_eq!(
+            role.external_ids()[1],
+            ("project-id".to_string(), "PROJ-456".to_string())
+        );
     }
 }
