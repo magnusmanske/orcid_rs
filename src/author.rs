@@ -793,7 +793,7 @@ mod tests {
 
         // Test that we can get name variants
         let name_variants = author.name_variants();
-        assert!(name_variants.len() > 0);
+        assert!(!name_variants.is_empty());
 
         // Should include the credit name
         assert!(name_variants.contains(&"J. Doe".to_string()));
