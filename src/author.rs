@@ -121,17 +121,20 @@ impl Author {
                             }
                             let x2 = &summary[key2];
                             let mut role = Role::new();
-                            role.department = x2["department-name"].as_str().map(|s| s.to_string());
-                            role.title = x2["role-title"].as_str().map(|s| s.to_string());
+                            role.set_department(
+                                x2["department-name"].as_str().map(|s| s.to_string()),
+                            );
+                            role.set_title(x2["role-title"].as_str().map(|s| s.to_string()));
                             if x2["start-date"].is_object() {
-                                role.start_date = Some(Date::new_from_json(&x2["start-date"]))
+                                role.set_start_date(Some(Date::new_from_json(&x2["start-date"])))
                             }
                             if x2["end-date"].is_object() {
-                                role.end_date = Some(Date::new_from_json(&x2["end-date"]))
+                                role.set_end_date(Some(Date::new_from_json(&x2["end-date"])))
                             }
                             if x2["organization"].is_object() {
-                                role.organization =
-                                    Some(Organization::new_from_json(&x2["organization"]))
+                                role.set_organization(Some(Organization::new_from_json(
+                                    &x2["organization"],
+                                )))
                             }
                             ret.push(role);
                         }
@@ -417,10 +420,13 @@ mod tests {
         let education = author.education();
         assert_eq!(education.len(), 1);
         assert_eq!(
-            education[0].department,
+            education[0].department().map(|s| s.to_string()),
             Some("Computer Science".to_string())
         );
-        assert_eq!(education[0].title, Some("PhD".to_string()));
+        assert_eq!(
+            education[0].title().map(|s| s.to_string()),
+            Some("PhD".to_string())
+        );
     }
 
     #[test]
@@ -449,7 +455,13 @@ mod tests {
         let author = Author::new_from_json(j);
         let employment = author.employment();
         assert_eq!(employment.len(), 1);
-        assert_eq!(employment[0].department, Some("Engineering".to_string()));
-        assert_eq!(employment[0].title, Some("Professor".to_string()));
+        assert_eq!(
+            employment[0].department().map(|s| s.to_string()),
+            Some("Engineering".to_string())
+        );
+        assert_eq!(
+            employment[0].title().map(|s| s.to_string()),
+            Some("Professor".to_string())
+        );
     }
 }
