@@ -117,7 +117,7 @@ mod tests {
     #[test]
     fn test_from_reqwest_error() {
         // We can't easily create a real reqwest::Error, so we'll test the trait implementation exists
-        fn takes_reqwest_error(_: reqwest::Error) -> OrcidError {
+        fn _takes_reqwest_error(_: reqwest::Error) -> OrcidError {
             // This function just tests that the From trait is implemented
             OrcidError::Other("test".to_string())
         }

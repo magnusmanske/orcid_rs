@@ -32,21 +32,17 @@ impl Author {
         let last_name = self.j["person"]["name"]["family-name"]["value"].as_str();
         let given_names = self.j["person"]["name"]["given-names"]["value"].as_str();
         match (given_names, last_name) {
-            (Some(f), Some(l)) => Some(format!("{} {}", &f, &l)),
-            (None, Some(l)) => Some((&l).to_string()),
+            (Some(f), Some(l)) => Some(format!("{} {}", f, l)),
+            (None, Some(l)) => Some(l.to_string()),
             _ => None,
         }
     }
 
     pub fn other_names(&self) -> Vec<&str> {
-        match self.j["person"]["other-names"]["other-name"].as_array() {
-            Some(x) => x
-                .iter()
-                .filter(|x| x["content"].is_string())
-                .filter_map(|x| x["content"].as_str())
-                .collect(),
-            None => vec![],
-        }
+        self.j["person"]["other-names"]["other-name"]
+            .as_array()
+            .map(|x| x.iter().filter_map(|x| x["content"].as_str()).collect())
+            .unwrap_or_default()
     }
 
     pub fn biography(&self) -> Option<&str> {
@@ -58,50 +54,47 @@ impl Author {
             &self.j["person"]["external-identifiers"]["external-identifier"],
             vec!["external-id-type", "external-id-value"],
         )
-        .iter()
-        .map(|v| (v[0].to_owned(), v[1].to_owned()))
+        .into_iter()
+        .map(|v| (v[0].clone(), v[1].clone()))
         .collect()
     }
 
     pub fn keywords(&self) -> Vec<String> {
         collect_parts(&self.j["person"]["keywords"]["keyword"], vec!["content"])
-            .iter()
-            .map(|v| v[0].to_owned())
+            .into_iter()
+            .map(|v| v.into_iter().next().unwrap_or_default())
             .collect()
     }
 
     pub fn works(&self) -> Vec<Work> {
         self.j["activities-summary"]["works"]["group"]
             .as_array()
-            .unwrap_or(&vec![])
-            .iter()
-            .map(Work::new_from_json)
-            .collect()
+            .map(|arr| arr.iter().map(Work::new_from_json).collect())
+            .unwrap_or_default()
     }
 
     pub fn researcher_urls(&self) -> Vec<(&str, &str)> {
-        match self.j["person"]["researcher-urls"]["researcher-url"].as_array() {
-            Some(x) => x
-                .iter()
-                .filter(|x| x["url-name"].is_string())
-                .filter(|x| x["url"]["value"].is_string())
-                .filter_map(
-                    |x| match (x["url-name"].as_str(), x["url"]["value"].as_str()) {
-                        (Some(name), Some(value)) => Some((name, value)),
-                        _ => None,
-                    },
-                )
-                .collect(),
-            None => vec![],
-        }
+        self.j["person"]["researcher-urls"]["researcher-url"]
+            .as_array()
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(
+                        |x| match (x["url-name"].as_str(), x["url"]["value"].as_str()) {
+                            (Some(name), Some(value)) => Some((name, value)),
+                            _ => None,
+                        },
+                    )
+                    .collect()
+            })
+            .unwrap_or_default()
     }
 
     fn roles(&self, key1: &str, key2: &str) -> Vec<Role> {
-        match self.j["activities-summary"][key1]["affiliation-group"].as_array() {
-            Some(groups) => {
-                let mut ret = vec![];
+        self.j["activities-summary"][key1]["affiliation-group"]
+            .as_array()
+            .map(|groups| {
+                let mut ret = Vec::new();
                 for group in groups {
-                    // TODO external-ids
                     if let Some(summaries) = group["summaries"].as_array() {
                         for summary in summaries {
                             if !summary[key2].is_object() {
@@ -129,9 +122,8 @@ impl Author {
                     }
                 }
                 ret
-            }
-            None => vec![],
-        }
+            })
+            .unwrap_or_default()
     }
 
     pub fn education(&self) -> Vec<Role> {
@@ -145,10 +137,8 @@ impl Author {
     pub fn fundings(&self) -> Vec<Funding> {
         self.j["activities-summary"]["fundings"]["group"]
             .as_array()
-            .unwrap_or(&vec![])
-            .iter()
-            .map(Funding::new_from_json)
-            .collect()
+            .map(|arr| arr.iter().map(Funding::new_from_json).collect())
+            .unwrap_or_default()
     }
 
     // TODO name and name variants
@@ -164,6 +154,159 @@ impl Author {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn test_author_comprehensive_access_patterns() {
+        // This test ensures all accessor methods work correctly with current JSON storage
+        // This will help ensure lazy parsing maintains the same behavior
+        let j = json!({
+            "orcid-identifier": {
+                "path": "0000-0001-5916-0947"
+            },
+            "person": {
+                "name": {
+                    "given-names": { "value": "John" },
+                    "family-name": { "value": "Doe" },
+                    "credit-name": { "value": "J. Doe" }
+                },
+                "other-names": {
+                    "other-name": [
+                        { "content": "Johnny" },
+                        { "content": "JD" }
+                    ]
+                },
+                "biography": {
+                    "content": "A test biography"
+                },
+                "researcher-urls": {
+                    "researcher-url": [
+                        {
+                            "url-name": "Website",
+                            "url": { "value": "https://example.com" }
+                        }
+                    ]
+                },
+                "external-identifiers": {
+                    "external-identifier": [
+                        {
+                            "external-id-type": "ISNI",
+                            "external-id-value": "0000000012345678"
+                        }
+                    ]
+                },
+                "keywords": {
+                    "keyword": [
+                        { "content": "testing" },
+                        { "content": "rust" }
+                    ]
+                }
+            },
+            "activities-summary": {
+                "works": {
+                    "group": [{
+                        "work-summary": [{
+                            "title": {
+                                "title": {
+                                    "value": "Test Work"
+                                }
+                            },
+                            "type": "journal-article",
+                            "publication-date": {
+                                "year": { "value": "2023" }
+                            }
+                        }],
+                        "external-ids": {
+                            "external-id": []
+                        }
+                    }]
+                },
+                "educations": {
+                    "affiliation-group": [{
+                        "summaries": [{
+                            "education-summary": {
+                                "department-name": "CS",
+                                "role-title": "PhD",
+                                "organization": {
+                                    "name": "Test U"
+                                }
+                            }
+                        }]
+                    }]
+                },
+                "employments": {
+                    "affiliation-group": [{
+                        "summaries": [{
+                            "employment-summary": {
+                                "department-name": "Engineering",
+                                "role-title": "Engineer",
+                                "organization": {
+                                    "name": "Test Corp"
+                                }
+                            }
+                        }]
+                    }]
+                },
+                "fundings": {
+                    "group": [{
+                        "funding-summary": [{
+                            "title": {
+                                "title": {
+                                    "value": "Test Grant"
+                                }
+                            }
+                        }]
+                    }]
+                }
+            }
+        });
+
+        let author = Author::new_from_json(j.clone());
+
+        // Test all accessor methods work
+        assert_eq!(author.orcid_id(), Some("0000-0001-5916-0947"));
+        assert_eq!(author.credit_name(), Some("J. Doe"));
+        assert_eq!(author.full_name(), Some("John Doe".to_string()));
+
+        let other_names = author.other_names();
+        assert_eq!(other_names.len(), 2);
+        assert_eq!(other_names[0], "Johnny");
+
+        assert_eq!(author.biography(), Some("A test biography"));
+
+        let urls = author.researcher_urls();
+        assert_eq!(urls.len(), 1);
+        assert_eq!(urls[0], ("Website", "https://example.com"));
+
+        let ext_ids = author.external_ids();
+        assert_eq!(ext_ids.len(), 1);
+        assert_eq!(
+            ext_ids[0],
+            ("ISNI".to_string(), "0000000012345678".to_string())
+        );
+
+        let keywords = author.keywords();
+        assert_eq!(keywords.len(), 2);
+        assert_eq!(keywords[0], "testing");
+
+        let works = author.works();
+        assert_eq!(works.len(), 1);
+        assert_eq!(works[0].title, Some("Test Work".to_string()));
+
+        let education = author.education();
+        assert_eq!(education.len(), 1);
+        assert_eq!(education[0].department().map(|s| s.as_str()), Some("CS"));
+
+        let employment = author.employment();
+        assert_eq!(employment.len(), 1);
+        assert_eq!(employment[0].title().map(|s| s.as_str()), Some("Engineer"));
+
+        let fundings = author.fundings();
+        assert_eq!(fundings.len(), 1);
+        assert_eq!(fundings[0].title().map(|s| s.as_str()), Some("Test Grant"));
+
+        // Ensure json() method returns the original JSON
+        assert_eq!(author.json(), &j);
+    }
 
     #[test]
     fn test_new_from_json() {
