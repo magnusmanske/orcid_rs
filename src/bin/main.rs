@@ -3,7 +3,7 @@ use orcid::*;
 // This is just for testing
 
 fn main() {
-    let client = Client::new();
+    let client = ClientBlocking::new();
     let author = client.author("0000-0001-5916-0947").unwrap();
     //let author = client.author("0000-0003-3386-3972").unwrap();
     println!("{}", author.credit_name().unwrap());

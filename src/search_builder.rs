@@ -1,9 +1,9 @@
 use crate::error::Result;
-use crate::Client;
+use crate::ClientBlocking;
 
 #[derive(Debug, Clone)]
 pub struct SearchBuilder<'a> {
-    client: &'a Client,
+    client: &'a ClientBlocking,
     keyword: Option<String>,
     affiliation: Option<String>,
     given_names: Option<String>,
@@ -17,7 +17,7 @@ pub struct SearchBuilder<'a> {
 }
 
 impl<'a> SearchBuilder<'a> {
-    pub fn new(client: &'a Client) -> Self {
+    pub fn new(client: &'a ClientBlocking) -> Self {
         Self {
             client,
             keyword: None,
@@ -189,7 +189,7 @@ mod tests {
 
     #[test]
     fn test_search_builder_basic() {
-        let client = Client::new();
+        let client = ClientBlocking::new();
         let builder = SearchBuilder::new(&client);
 
         assert!(builder.keyword.is_none());
@@ -199,7 +199,7 @@ mod tests {
 
     #[test]
     fn test_search_builder_with_keyword() {
-        let client = Client::new();
+        let client = ClientBlocking::new();
         let builder = SearchBuilder::new(&client).with_keyword("climate");
 
         assert_eq!(builder.get_keyword(), Some("climate"));
@@ -208,7 +208,7 @@ mod tests {
 
     #[test]
     fn test_search_builder_with_affiliation() {
-        let client = Client::new();
+        let client = ClientBlocking::new();
         let builder = SearchBuilder::new(&client).with_affiliation("MIT");
 
         assert_eq!(builder.get_affiliation(), Some("MIT"));
@@ -217,7 +217,7 @@ mod tests {
 
     #[test]
     fn test_search_builder_multiple_criteria() {
-        let client = Client::new();
+        let client = ClientBlocking::new();
         let builder = SearchBuilder::new(&client)
             .with_keyword("quantum computing")
             .with_affiliation("Stanford University")
@@ -232,7 +232,7 @@ mod tests {
 
     #[test]
     fn test_search_builder_with_pagination() {
-        let client = Client::new();
+        let client = ClientBlocking::new();
         let builder = SearchBuilder::new(&client)
             .with_keyword("physics")
             .limit(50)
@@ -246,7 +246,7 @@ mod tests {
 
     #[test]
     fn test_search_builder_doi_search() {
-        let client = Client::new();
+        let client = ClientBlocking::new();
         let builder = SearchBuilder::new(&client).with_doi("10.1038/nature12373");
 
         let query = builder.build_query();
@@ -263,7 +263,7 @@ mod tests {
 
     #[test]
     fn test_search_builder_all_fields() {
-        let client = Client::new();
+        let client = ClientBlocking::new();
         let builder = SearchBuilder::new(&client)
             .with_keyword("test")
             .with_affiliation("University")
@@ -291,7 +291,7 @@ mod tests {
 
     #[test]
     fn test_search_builder_chaining() {
-        let client = Client::new();
+        let client = ClientBlocking::new();
         let query = SearchBuilder::new(&client)
             .with_keyword("climate change")
             .with_affiliation("Harvard")

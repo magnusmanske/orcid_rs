@@ -1,6 +1,6 @@
 pub mod author;
 pub mod client;
-pub mod client_async;
+pub mod client_blocking;
 pub mod date;
 pub mod error;
 pub mod funding;
@@ -17,7 +17,7 @@ pub mod work;
 // Re-export public structs for convenience
 pub use author::Author;
 pub use client::Client;
-pub use client_async::AsyncClient;
+pub use client_blocking::ClientBlocking;
 pub use date::Date;
 pub use error::{OrcidError, Result};
 pub use funding::Funding;
