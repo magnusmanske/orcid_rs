@@ -41,6 +41,14 @@ impl Author {
         }
     }
 
+    pub fn given_names(&self) -> Option<&str> {
+        self.j["person"]["name"]["given-names"]["value"].as_str()
+    }
+
+    pub fn family_name(&self) -> Option<&str> {
+        self.j["person"]["name"]["family-name"]["value"].as_str()
+    }
+
     pub fn other_names(&self) -> Vec<&str> {
         self.j["person"]["other-names"]["other-name"]
             .as_array()
@@ -188,8 +196,29 @@ impl Author {
             .unwrap_or_default()
     }
 
-    // TODO name and name variants
-    // invited-positions
+    pub fn name_variants(&self) -> Vec<String> {
+        let mut variants = std::collections::HashSet::new();
+
+        // Add credit name
+        if let Some(credit) = self.credit_name() {
+            variants.insert(credit.to_string());
+        }
+
+        // Add full name
+        if let Some(full) = self.full_name() {
+            variants.insert(full);
+        }
+
+        // Add other names
+        for name in self.other_names() {
+            variants.insert(name.to_string());
+        }
+
+        // Convert to Vec and return
+        variants.into_iter().collect()
+    }
+
+    // TODO invited-positions
     // research-resources?
     // services?
 }
@@ -737,5 +766,50 @@ mod tests {
             role.external_ids()[1],
             ("project-id".to_string(), "PROJ-456".to_string())
         );
+    }
+
+    #[test]
+    fn test_name_variants() {
+        let j = json!({
+            "orcid-identifier": {
+                "path": "0000-0001-5916-0947"
+            },
+            "person": {
+                "name": {
+                    "given-names": { "value": "John" },
+                    "family-name": { "value": "Doe" },
+                    "credit-name": { "value": "J. Doe" }
+                },
+                "other-names": {
+                    "other-name": [
+                        { "content": "Johnny Doe" },
+                        { "content": "J.D." }
+                    ]
+                }
+            }
+        });
+
+        let author = Author::new_from_json(j);
+
+        // Test that we can get name variants
+        let name_variants = author.name_variants();
+        assert!(name_variants.len() > 0);
+
+        // Should include the credit name
+        assert!(name_variants.contains(&"J. Doe".to_string()));
+
+        // Should include the full name
+        assert!(name_variants.contains(&"John Doe".to_string()));
+
+        // Should include other names
+        assert!(name_variants.contains(&"Johnny Doe".to_string()));
+        assert!(name_variants.contains(&"J.D.".to_string()));
+
+        // Should not have duplicates
+        let unique_count = name_variants
+            .iter()
+            .collect::<std::collections::HashSet<_>>()
+            .len();
+        assert_eq!(unique_count, name_variants.len());
     }
 }
