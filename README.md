@@ -65,7 +65,8 @@ let results = client.search_builder()
     .with_keyword("machine learning")
     .with_affiliation("MIT")
     .limit(50)
-    .execute()?;
+    .execute()
+    .await?;
 ```
 
 ## Features

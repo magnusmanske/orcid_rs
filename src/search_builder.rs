@@ -1,9 +1,9 @@
 use crate::error::Result;
-use crate::ClientBlocking;
+use crate::Client;
 
 #[derive(Debug, Clone)]
 pub struct SearchBuilder<'a> {
-    client: &'a ClientBlocking,
+    client: &'a Client,
     keyword: Option<String>,
     affiliation: Option<String>,
     given_names: Option<String>,
@@ -17,7 +17,7 @@ pub struct SearchBuilder<'a> {
 }
 
 impl<'a> SearchBuilder<'a> {
-    pub fn new(client: &'a ClientBlocking) -> Self {
+    pub fn new(client: &'a Client) -> Self {
         Self {
             client,
             keyword: None,
@@ -168,9 +168,9 @@ impl<'a> SearchBuilder<'a> {
     }
 
     /// Execute the search and return ORCID IDs
-    pub fn execute(&self) -> Result<Vec<String>> {
+    pub async fn execute(&self) -> Result<Vec<String>> {
         let query = self.build_query();
-        self.client.search(&query)
+        self.client.search(&query).await
     }
 }
 
@@ -189,7 +189,7 @@ mod tests {
 
     #[test]
     fn test_search_builder_basic() {
-        let client = ClientBlocking::new();
+        let client = Client::new();
         let builder = SearchBuilder::new(&client);
 
         assert!(builder.keyword.is_none());
@@ -199,7 +199,7 @@ mod tests {
 
     #[test]
     fn test_search_builder_with_keyword() {
-        let client = ClientBlocking::new();
+        let client = Client::new();
         let builder = SearchBuilder::new(&client).with_keyword("climate");
 
         assert_eq!(builder.get_keyword(), Some("climate"));
@@ -208,7 +208,7 @@ mod tests {
 
     #[test]
     fn test_search_builder_with_affiliation() {
-        let client = ClientBlocking::new();
+        let client = Client::new();
         let builder = SearchBuilder::new(&client).with_affiliation("MIT");
 
         assert_eq!(builder.get_affiliation(), Some("MIT"));
@@ -217,7 +217,7 @@ mod tests {
 
     #[test]
     fn test_search_builder_multiple_criteria() {
-        let client = ClientBlocking::new();
+        let client = Client::new();
         let builder = SearchBuilder::new(&client)
             .with_keyword("quantum computing")
             .with_affiliation("Stanford University")
@@ -232,7 +232,7 @@ mod tests {
 
     #[test]
     fn test_search_builder_with_pagination() {
-        let client = ClientBlocking::new();
+        let client = Client::new();
         let builder = SearchBuilder::new(&client)
             .with_keyword("physics")
             .limit(50)
@@ -246,7 +246,7 @@ mod tests {
 
     #[test]
     fn test_search_builder_doi_search() {
-        let client = ClientBlocking::new();
+        let client = Client::new();
         let builder = SearchBuilder::new(&client).with_doi("10.1038/nature12373");
 
         let query = builder.build_query();
@@ -263,7 +263,7 @@ mod tests {
 
     #[test]
     fn test_search_builder_all_fields() {
-        let client = ClientBlocking::new();
+        let client = Client::new();
         let builder = SearchBuilder::new(&client)
             .with_keyword("test")
             .with_affiliation("University")
@@ -291,7 +291,7 @@ mod tests {
 
     #[test]
     fn test_search_builder_chaining() {
-        let client = ClientBlocking::new();
+        let client = Client::new();
         let query = SearchBuilder::new(&client)
             .with_keyword("climate change")
             .with_affiliation("Harvard")
@@ -301,5 +301,17 @@ mod tests {
         assert!(query.contains("text:\"climate change\""));
         assert!(query.contains("affiliation-org-name:Harvard"));
         assert!(query.contains("rows=100"));
+    }
+
+    #[tokio::test]
+    async fn test_execute_invalid_orcid() {
+        let client = Client::new();
+        let result = SearchBuilder::new(&client)
+            .with_keyword("test")
+            .execute()
+            .await;
+        // We don't assert success/failure as it would make a real API call,
+        // but we verify the method is callable and returns the right type
+        let _: Result<Vec<String>> = result;
     }
 }

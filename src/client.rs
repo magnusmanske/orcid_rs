@@ -1,5 +1,6 @@
 use crate::author::Author;
 use crate::error::{OrcidError, Result};
+use crate::search_builder::SearchBuilder;
 use reqwest::header::ACCEPT;
 use serde_json;
 
@@ -87,6 +88,11 @@ impl Client {
                 .collect()),
             None => Err(OrcidError::Other(format!("Bad result: {}", &json))),
         }
+    }
+
+    /// Create a search builder for constructing complex searches
+    pub fn search_builder(&self) -> SearchBuilder<'_> {
+        SearchBuilder::new(self)
     }
 }
 
