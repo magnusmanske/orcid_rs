@@ -10,6 +10,7 @@ pub mod peer_review;
 pub mod publication_date;
 pub mod qualification;
 pub mod role;
+pub mod search_builder;
 pub mod utils;
 pub mod work;
 
@@ -26,4 +27,5 @@ pub use peer_review::PeerReview;
 pub use publication_date::PublicationDate;
 pub use qualification::Qualification;
 pub use role::Role;
+pub use search_builder::SearchBuilder;
 pub use work::Work;

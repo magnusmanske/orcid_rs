@@ -1,5 +1,6 @@
 use crate::author::Author;
 use crate::error::{OrcidError, Result};
+use crate::search_builder::SearchBuilder;
 use reqwest::header::ACCEPT;
 use serde_json;
 
@@ -81,6 +82,11 @@ impl Client {
                 .collect()),
             None => Err(OrcidError::Other(format!("Bad result: {}", &json))),
         }
+    }
+
+    /// Create a search builder for constructing complex searches
+    pub fn search_builder(&self) -> SearchBuilder<'_> {
+        SearchBuilder::new(self)
     }
 }
 
@@ -187,5 +193,27 @@ mod tests {
         // This test just ensures the method signature is correct for blocking
         // We can't easily test the actual request without mocking
         assert_eq!(client.api_url, "https://pub.orcid.org/v3.0/");
+    }
+
+    #[test]
+    fn test_search_builder() {
+        let client = Client::new();
+
+        // Test building a search with multiple criteria
+        let builder = client
+            .search_builder()
+            .with_keyword("climate")
+            .with_affiliation("MIT")
+            .limit(50);
+
+        // Verify the builder has captured the parameters
+        assert_eq!(builder.get_keyword(), Some("climate"));
+        assert_eq!(builder.get_affiliation(), Some("MIT"));
+        assert_eq!(builder.get_limit(), Some(50));
+
+        // Test that we can build a query string
+        let query = builder.build_query();
+        assert!(query.contains("climate"));
+        assert!(query.contains("MIT"));
     }
 }
