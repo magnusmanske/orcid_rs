@@ -4,8 +4,8 @@ use orcid::*;
 
 fn main() {
     let client = Client::new();
-    let author = client.author(&"0000-0001-5916-0947".to_string()).unwrap();
-    //let author = client.author(&"0000-0003-3386-3972".to_string()).unwrap();
+    let author = client.author("0000-0001-5916-0947").unwrap();
+    //let author = client.author("0000-0003-3386-3972").unwrap();
     println!("{}", author.credit_name().unwrap());
     println!("{}", author.full_name().unwrap());
     println!("{:?}", author.other_names());
@@ -20,7 +20,7 @@ fn main() {
         println!(
             "{:?}",
             client
-                .search_doi(&"10.1038/NATURE11174".to_string())
+                .search_doi("10.1038/NATURE11174")
                 .unwrap()
         );
     */

@@ -1,18 +1,6 @@
 use crate::publication_date::PublicationDate;
+use crate::utils::collect_parts;
 use serde_json;
-
-fn collect_parts(j: &serde_json::Value, parts: Vec<&str>) -> Vec<Vec<String>> {
-    j.as_array()
-        .unwrap_or(&vec![])
-        .iter()
-        .map(|v| {
-            parts
-                .iter()
-                .map(|part| v[part].as_str().unwrap_or("").to_string())
-                .collect()
-        })
-        .collect()
-}
 
 #[derive(Debug, Clone)]
 pub struct Work {
@@ -115,46 +103,5 @@ mod tests {
         assert_eq!(work.publication_date.year(), None);
         assert_eq!(work.publication_date.month(), None);
         assert_eq!(work.publication_date.day(), None);
-    }
-
-    #[test]
-    fn test_collect_parts() {
-        let j = json!([
-            {
-                "type": "doi",
-                "value": "10.1234/test"
-            },
-            {
-                "type": "pmid",
-                "value": "12345678"
-            }
-        ]);
-
-        let result = collect_parts(&j, vec!["type", "value"]);
-        assert_eq!(result.len(), 2);
-        assert_eq!(
-            result[0],
-            vec!["doi".to_string(), "10.1234/test".to_string()]
-        );
-        assert_eq!(result[1], vec!["pmid".to_string(), "12345678".to_string()]);
-    }
-
-    #[test]
-    fn test_collect_parts_missing_fields() {
-        let j = json!([
-            {
-                "type": "doi"
-                // missing "value"
-            },
-            {
-                "value": "12345678"
-                // missing "type"
-            }
-        ]);
-
-        let result = collect_parts(&j, vec!["type", "value"]);
-        assert_eq!(result.len(), 2);
-        assert_eq!(result[0], vec!["doi".to_string(), "".to_string()]);
-        assert_eq!(result[1], vec!["".to_string(), "12345678".to_string()]);
     }
 }

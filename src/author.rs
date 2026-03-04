@@ -1,22 +1,10 @@
 use crate::date::Date;
+use crate::funding::Funding;
 use crate::organization::Organization;
+use crate::role::Role;
+use crate::utils::collect_parts;
 use crate::work::Work;
 use serde_json;
-
-fn collect_parts(j: &serde_json::Value, parts: Vec<&str>) -> Vec<Vec<String>> {
-    j.as_array()
-        .unwrap_or(&vec![])
-        .iter()
-        .map(|v| {
-            parts
-                .iter()
-                .map(|part| v[part].as_str().unwrap_or("").to_string())
-                .collect()
-        })
-        .collect()
-}
-
-use crate::role::Role;
 
 #[derive(Debug, Clone)]
 pub struct Author {
@@ -154,8 +142,16 @@ impl Author {
         self.roles("employments", "employment-summary")
     }
 
+    pub fn fundings(&self) -> Vec<Funding> {
+        self.j["activities-summary"]["fundings"]["group"]
+            .as_array()
+            .unwrap_or(&vec![])
+            .iter()
+            .map(Funding::new_from_json)
+            .collect()
+    }
+
     // TODO name and name variants
-    // fundings
     // invited-positions
     // memberships
     // peer-reviews

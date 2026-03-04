@@ -42,7 +42,7 @@ impl Client {
     }
 
     /// Returns an `Author` for a given ORCID ID
-    pub fn author(&self, orcid_id: &String) -> Result<Author> {
+    pub fn author(&self, orcid_id: &str) -> Result<Author> {
         if !Self::is_valid_orcid_id(orcid_id) {
             return Err(anyhow!("{} is not a valid ORCID ID", orcid_id));
         }
@@ -68,8 +68,9 @@ impl Client {
 
     /// Takes a search query, returns a Vec<String> of ORCID IDs
     pub fn search(&self, query: &str) -> Result<Vec<String>> {
-        // TODO urlencode search query
-        let json: serde_json::Value = self.get_json_from_api("search?q=".to_string() + query)?;
+        let encoded_query = urlencoding::encode(query);
+        let json: serde_json::Value =
+            self.get_json_from_api(format!("search?q={}", encoded_query))?;
         match json["result"].as_array() {
             Some(res) => Ok(res
                 .iter()
