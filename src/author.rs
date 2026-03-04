@@ -3,6 +3,7 @@ use crate::funding::Funding;
 use crate::membership::Membership;
 use crate::organization::Organization;
 use crate::peer_review::PeerReview;
+use crate::qualification::Qualification;
 use crate::role::Role;
 use crate::utils::collect_parts;
 use crate::work::Work;
@@ -157,9 +158,15 @@ impl Author {
             .unwrap_or_default()
     }
 
+    pub fn qualifications(&self) -> Vec<Qualification> {
+        self.j["activities-summary"]["qualifications"]["group"]
+            .as_array()
+            .map(|arr| arr.iter().map(Qualification::new_from_json).collect())
+            .unwrap_or_default()
+    }
+
     // TODO name and name variants
     // invited-positions
-    // qualifications
     // research-resources?
     // services?
 }
