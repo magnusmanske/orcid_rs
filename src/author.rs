@@ -2,6 +2,7 @@ use crate::date::Date;
 use crate::funding::Funding;
 use crate::membership::Membership;
 use crate::organization::Organization;
+use crate::peer_review::PeerReview;
 use crate::role::Role;
 use crate::utils::collect_parts;
 use crate::work::Work;
@@ -149,9 +150,15 @@ impl Author {
             .unwrap_or_default()
     }
 
+    pub fn peer_reviews(&self) -> Vec<PeerReview> {
+        self.j["activities-summary"]["peer-reviews"]["group"]
+            .as_array()
+            .map(|arr| arr.iter().map(PeerReview::new_from_json).collect())
+            .unwrap_or_default()
+    }
+
     // TODO name and name variants
     // invited-positions
-    // peer-reviews
     // qualifications
     // research-resources?
     // services?
