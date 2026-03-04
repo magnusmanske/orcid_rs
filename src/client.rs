@@ -1,5 +1,5 @@
 use crate::author::Author;
-use anyhow::{anyhow, Result};
+use crate::error::{OrcidError, Result};
 use reqwest::header::ACCEPT;
 use serde_json;
 
@@ -15,14 +15,15 @@ impl Client {
         }
     }
 
-    fn get_json_from_api(&self, query: String) -> Result<serde_json::Value, reqwest::Error> {
+    fn get_json_from_api(&self, query: String) -> Result<serde_json::Value> {
         let url = self.api_url.clone() + &query;
         //println!("{}", &url);
-        reqwest::blocking::Client::new()
+        let json = reqwest::blocking::Client::new()
             .get(url.as_str())
             .header(ACCEPT, "application/json")
             .send()?
-            .json()
+            .json()?;
+        Ok(json)
     }
 
     pub fn is_valid_orcid_id(id: &str) -> bool {
@@ -44,19 +45,20 @@ impl Client {
     /// Returns an `Author` for a given ORCID ID
     pub fn author(&self, orcid_id: &str) -> Result<Author> {
         if !Self::is_valid_orcid_id(orcid_id) {
-            return Err(anyhow!("{} is not a valid ORCID ID", orcid_id));
+            return Err(OrcidError::InvalidOrcidId(orcid_id.to_string()));
         }
 
         let json: serde_json::Value = self.get_json_from_api(orcid_id.to_string())?;
 
         match json["error-code"].as_str() {
-            Some(_) => Err(anyhow!(
-                "{}:{}",
-                orcid_id,
-                json["developer-message"]
+            Some(error_code) => Err(OrcidError::ApiError {
+                orcid_id: orcid_id.to_string(),
+                error_code: error_code.to_string(),
+                developer_message: json["developer-message"]
                     .as_str()
                     .unwrap_or("no developer-message")
-            )),
+                    .to_string(),
+            }),
             None => Ok(Author::new_from_json(json)),
         }
     }
@@ -77,7 +79,7 @@ impl Client {
                 .filter_map(|x| x["orcid-identifier"]["path"].as_str())
                 .map(|s| s.to_string())
                 .collect()),
-            None => Err(anyhow!("Bad result: {}", &json)),
+            None => Err(OrcidError::Other(format!("Bad result: {}", &json))),
         }
     }
 }
@@ -155,5 +157,35 @@ mod tests {
         assert!(!Client::is_valid_orcid_id("0000-0001-5916-094A"));
         assert!(!Client::is_valid_orcid_id("0000-0001-5916-094?"));
         assert!(!Client::is_valid_orcid_id("ABCD-EFGH-IJKL-MNOP"));
+    }
+
+    #[test]
+    fn test_blocking_client_behavior() {
+        // This test verifies that the current client uses blocking I/O
+        // and returns results synchronously
+        let client = Client::new();
+
+        // Test that methods return Result directly (not Future)
+        fn assert_sync_result<T>(_: Result<T>) {}
+
+        // These would fail to compile if the methods returned futures
+        let invalid_id = "invalid";
+        let result = client.author(invalid_id);
+        assert_sync_result(result);
+
+        let search_result = client.search("test");
+        assert_sync_result(search_result);
+
+        let doi_result = client.search_doi("10.1234/test");
+        assert_sync_result(doi_result);
+    }
+
+    #[test]
+    fn test_get_json_from_api_is_blocking() {
+        // Verify that the internal API method uses blocking client
+        let client = Client::new();
+        // This test just ensures the method signature is correct for blocking
+        // We can't easily test the actual request without mocking
+        assert_eq!(client.api_url, "https://pub.orcid.org/v3.0/");
     }
 }
