@@ -1,5 +1,6 @@
 use crate::date::Date;
 use crate::funding::Funding;
+use crate::membership::Membership;
 use crate::organization::Organization;
 use crate::role::Role;
 use crate::utils::collect_parts;
@@ -141,9 +142,15 @@ impl Author {
             .unwrap_or_default()
     }
 
+    pub fn memberships(&self) -> Vec<Membership> {
+        self.j["activities-summary"]["memberships"]["group"]
+            .as_array()
+            .map(|arr| arr.iter().map(Membership::new_from_json).collect())
+            .unwrap_or_default()
+    }
+
     // TODO name and name variants
     // invited-positions
-    // memberships
     // peer-reviews
     // qualifications
     // research-resources?
@@ -602,5 +609,47 @@ mod tests {
             employment[0].title().map(|s| s.to_string()),
             Some("Professor".to_string())
         );
+    }
+
+    #[test]
+    fn test_memberships() {
+        let j = json!({
+            "activities-summary": {
+                "memberships": {
+                    "group": [{
+                        "membership-summary": [{
+                            "organization": {
+                                "name": "ACM"
+                            },
+                            "department-name": "Computer Science",
+                            "role-title": "Senior Member",
+                            "start-date": {
+                                "year": { "value": 2018 }
+                            },
+                            "external-ids": {
+                                "external-id": [{
+                                    "external-id-type": "membership-id",
+                                    "external-id-value": "ACM-123456"
+                                }]
+                            }
+                        }]
+                    }]
+                }
+            }
+        });
+
+        let author = Author::new_from_json(j);
+        let memberships = author.memberships();
+        assert_eq!(memberships.len(), 1);
+        assert_eq!(
+            memberships[0].role_title().map(|s| s.as_str()),
+            Some("Senior Member")
+        );
+        assert_eq!(
+            memberships[0].department_name().map(|s| s.as_str()),
+            Some("Computer Science")
+        );
+        assert!(memberships[0].organization().is_some());
+        assert_eq!(memberships[0].external_ids().len(), 1);
     }
 }
