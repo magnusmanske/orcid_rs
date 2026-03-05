@@ -79,7 +79,7 @@ impl ClientBlocking {
                 .filter_map(|x| x["orcid-identifier"]["path"].as_str())
                 .map(|s| s.to_string())
                 .collect()),
-            None => Err(OrcidError::Other(format!("Bad result: {}", &json))),
+            None => Err(OrcidError::BadApiResponse(json)),
         }
     }
 }

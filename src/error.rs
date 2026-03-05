@@ -20,6 +20,9 @@ pub enum OrcidError {
         developer_message: String,
     },
 
+    /// API returned a response that could not be parsed
+    BadApiResponse(serde_json::Value),
+
     /// Generic error with a message
     Other(String),
 }
@@ -46,6 +49,9 @@ impl fmt::Display for OrcidError {
                     "API error for ORCID {}: {} - {}",
                     orcid_id, error_code, developer_message
                 )
+            }
+            OrcidError::BadApiResponse(json) => {
+                write!(f, "Unexpected API response: {}", json)
             }
             OrcidError::Other(msg) => write!(f, "{}", msg),
         }
@@ -98,6 +104,14 @@ mod tests {
             error.to_string(),
             "API error for ORCID 0000-0001-2345-6789: 404 - ORCID not found"
         );
+    }
+
+    #[test]
+    fn test_bad_api_response_display() {
+        let json = serde_json::json!({ "unexpected": "payload" });
+        let error = OrcidError::BadApiResponse(json);
+        assert!(error.to_string().contains("Unexpected API response"));
+        assert!(error.to_string().contains("unexpected"));
     }
 
     #[test]
