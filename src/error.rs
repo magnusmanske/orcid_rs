@@ -22,9 +22,6 @@ pub enum OrcidError {
 
     /// API returned a response that could not be parsed
     BadApiResponse(serde_json::Value),
-
-    /// Generic error with a message
-    Other(String),
 }
 
 impl fmt::Display for OrcidError {
@@ -53,7 +50,6 @@ impl fmt::Display for OrcidError {
             OrcidError::BadApiResponse(json) => {
                 write!(f, "Unexpected API response: {}", json)
             }
-            OrcidError::Other(msg) => write!(f, "{}", msg),
         }
     }
 }
@@ -112,12 +108,6 @@ mod tests {
         let error = OrcidError::BadApiResponse(json);
         assert!(error.to_string().contains("Unexpected API response"));
         assert!(error.to_string().contains("unexpected"));
-    }
-
-    #[test]
-    fn test_other_error_display() {
-        let error = OrcidError::Other("Something went wrong".to_string());
-        assert_eq!(error.to_string(), "Something went wrong");
     }
 
     #[test]
