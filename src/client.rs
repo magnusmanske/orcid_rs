@@ -6,22 +6,38 @@ use serde_json;
 
 #[derive(Debug, Clone)]
 pub struct Client {
-    api_url: String,
-    client: reqwest::Client,
+    base_url: String,
+    http_client: reqwest::Client,
 }
 
 impl Client {
     pub fn new() -> Self {
         Self {
-            api_url: "https://pub.orcid.org/v3.0/".to_string(),
-            client: reqwest::Client::new(),
+            base_url: "https://pub.orcid.org/v3.0/".to_string(),
+            http_client: reqwest::Client::new(),
         }
     }
 
+    /// Replaces the internal `reqwest::Client`. Useful for sharing a
+    /// connection pool, embedding middleware (retry layers, tracing,
+    /// custom user-agent), or in tests that want fast-fail timeouts.
+    /// All other configuration set so far is preserved.
+    pub fn http_client(mut self, client: reqwest::Client) -> Self {
+        self.http_client = client;
+        self
+    }
+
+    /// Overrides the API base URL. Lets tests redirect every request
+    /// to a wiremock server: `.base_url(mock.uri())`.
+    pub fn base_url(mut self, url: impl Into<String>) -> Self {
+        self.base_url = url.into();
+        self
+    }
+
     async fn get_json_from_api(&self, query: String) -> Result<serde_json::Value> {
-        let url = self.api_url.clone() + &query;
+        let url = self.base_url.clone() + &query;
         let response = self
-            .client
+            .http_client
             .get(&url)
             .header(ACCEPT, "application/json")
             .send()
@@ -109,13 +125,13 @@ mod tests {
     #[test]
     fn test_new() {
         let client = Client::new();
-        assert_eq!(client.api_url, "https://pub.orcid.org/v3.0/");
+        assert_eq!(client.base_url, "https://pub.orcid.org/v3.0/");
     }
 
     #[test]
     fn test_default() {
         let client = Client::default();
-        assert_eq!(client.api_url, "https://pub.orcid.org/v3.0/");
+        assert_eq!(client.base_url, "https://pub.orcid.org/v3.0/");
     }
 
     #[test]
@@ -139,7 +155,7 @@ mod tests {
     fn test_clone() {
         let client = Client::new();
         let cloned = client.clone();
-        assert_eq!(cloned.api_url, client.api_url);
+        assert_eq!(cloned.base_url, client.base_url);
     }
 
     #[test]
@@ -147,7 +163,7 @@ mod tests {
         let client = Client::new();
         let debug_str = format!("{:?}", client);
         assert!(debug_str.contains("Client"));
-        assert!(debug_str.contains("api_url"));
+        assert!(debug_str.contains("base_url"));
         assert!(debug_str.contains("https://pub.orcid.org/v3.0/"));
     }
 
@@ -169,6 +185,23 @@ mod tests {
         assert!(!Client::is_valid_orcid_id("0000-0001-5916-094A"));
         assert!(!Client::is_valid_orcid_id("0000-0001-5916-094?"));
         assert!(!Client::is_valid_orcid_id("ABCD-EFGH-IJKL-MNOP"));
+    }
+
+    #[test]
+    fn test_base_url_override() {
+        let client = Client::new().base_url("http://localhost:1234/");
+        assert_eq!(client.base_url, "http://localhost:1234/");
+    }
+
+    #[test]
+    fn test_http_client_override() {
+        let custom = reqwest::Client::builder()
+            .user_agent("orcid-test/1.0")
+            .build()
+            .unwrap();
+        let client = Client::new().http_client(custom);
+        // base_url is preserved
+        assert_eq!(client.base_url, "https://pub.orcid.org/v3.0/");
     }
 
     #[tokio::test]

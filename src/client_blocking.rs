@@ -5,20 +5,38 @@ use serde_json;
 
 #[derive(Debug, Clone)]
 pub struct ClientBlocking {
-    api_url: String,
+    base_url: String,
+    http_client: reqwest::blocking::Client,
 }
 
 impl ClientBlocking {
     pub fn new() -> ClientBlocking {
         ClientBlocking {
-            api_url: "https://pub.orcid.org/v3.0/".to_string(),
+            base_url: "https://pub.orcid.org/v3.0/".to_string(),
+            http_client: reqwest::blocking::Client::new(),
         }
     }
 
+    /// Replaces the internal `reqwest::blocking::Client`. Useful for sharing a
+    /// connection pool, embedding middleware (retry layers, tracing,
+    /// custom user-agent), or in tests that want fast-fail timeouts.
+    /// All other configuration set so far is preserved.
+    pub fn http_client(mut self, client: reqwest::blocking::Client) -> Self {
+        self.http_client = client;
+        self
+    }
+
+    /// Overrides the API base URL. Lets tests redirect every request
+    /// to a wiremock server: `.base_url(mock.uri())`.
+    pub fn base_url(mut self, url: impl Into<String>) -> Self {
+        self.base_url = url.into();
+        self
+    }
+
     fn get_json_from_api(&self, query: String) -> Result<serde_json::Value> {
-        let url = self.api_url.clone() + &query;
-        //println!("{}", &url);
-        let json = reqwest::blocking::Client::new()
+        let url = self.base_url.clone() + &query;
+        let json = self
+            .http_client
             .get(url.as_str())
             .header(ACCEPT, "application/json")
             .send()?
@@ -97,13 +115,13 @@ mod tests {
     #[test]
     fn test_new() {
         let client = ClientBlocking::new();
-        assert_eq!(client.api_url, "https://pub.orcid.org/v3.0/");
+        assert_eq!(client.base_url, "https://pub.orcid.org/v3.0/");
     }
 
     #[test]
     fn test_default() {
         let client = ClientBlocking::default();
-        assert_eq!(client.api_url, "https://pub.orcid.org/v3.0/");
+        assert_eq!(client.base_url, "https://pub.orcid.org/v3.0/");
     }
 
     #[test]
@@ -127,7 +145,7 @@ mod tests {
     fn test_clone() {
         let client = ClientBlocking::new();
         let cloned = client.clone();
-        assert_eq!(cloned.api_url, client.api_url);
+        assert_eq!(cloned.base_url, client.base_url);
     }
 
     #[test]
@@ -135,7 +153,7 @@ mod tests {
         let client = ClientBlocking::new();
         let debug_str = format!("{:?}", client);
         assert!(debug_str.contains("ClientBlocking"));
-        assert!(debug_str.contains("api_url"));
+        assert!(debug_str.contains("base_url"));
         assert!(debug_str.contains("https://pub.orcid.org/v3.0/"));
     }
 
@@ -159,6 +177,22 @@ mod tests {
         assert!(!ClientBlocking::is_valid_orcid_id("0000-0001-5916-094A"));
         assert!(!ClientBlocking::is_valid_orcid_id("0000-0001-5916-094?"));
         assert!(!ClientBlocking::is_valid_orcid_id("ABCD-EFGH-IJKL-MNOP"));
+    }
+
+    #[test]
+    fn test_base_url_override() {
+        let client = ClientBlocking::new().base_url("http://localhost:1234/");
+        assert_eq!(client.base_url, "http://localhost:1234/");
+    }
+
+    #[test]
+    fn test_http_client_override() {
+        let custom = reqwest::blocking::Client::builder()
+            .user_agent("orcid-test/1.0")
+            .build()
+            .unwrap();
+        let client = ClientBlocking::new().http_client(custom);
+        assert_eq!(client.base_url, "https://pub.orcid.org/v3.0/");
     }
 
     #[test]
@@ -188,7 +222,7 @@ mod tests {
         let client = ClientBlocking::new();
         // This test just ensures the method signature is correct for blocking
         // We can't easily test the actual request without mocking
-        assert_eq!(client.api_url, "https://pub.orcid.org/v3.0/");
+        assert_eq!(client.base_url, "https://pub.orcid.org/v3.0/");
     }
 
     #[tokio::test]
